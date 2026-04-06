@@ -177,5 +177,83 @@ export const orderHandler = (io, socket) => {
     } catch (error) {
       callback({ success: false, message: 'Failed to update order status' });
     }
-  })
+  });
+
+  socket.on("orderAccept", async (data, callback) => {
+    try {
+      if(!socket.isAdmin) {
+        return callback({ success: false, message: 'Unauthorized' });
+
+      }
+        const orderCollection = getCollection('orders');
+        const order = await orderCollection.findOne({ orderId: data.orderId });
+        if (!order || order.status !== 'pending') {
+          return callback({ success: false, message: 'Can not accept this order' });
+        }
+        const estimatedTime = data.estimatedTime || 30; // default to 30 mins if not provided
+        const result = await orderCollection.findOneAndUpdate(
+          { orderId: data.orderId },
+          { 
+            $set: { status: 'confirmed', estimatedTime, updatedAt: new Date() },
+          },
+          {
+            $push: {
+              statusHistory: {
+                status: 'confirmed',
+                timestamp: new Date(),
+                by: socket.id,
+                note: `Order confirmed. Estimated time: ${estimatedTime} minutes`
+              }
+            },
+          },
+          { returnDocument: 'after' }
+        );
+        io.to(`order-${data.order}`).emit("orderAccepted", {orderId :data.orderId, estimatedTime });
+        socket.to("admins").emit('orderAcceptByAdmin', {orderId : data.orderId});
+        callback({ success: true, order: result })
+        
+    } catch (error) {
+      callback({ success: false, message: error.message | 'Failed to accept order' });
+    }
+  });
+
+    // Reject Order
+    socket.on('rejectOrder', async (data, callback) => {
+        try {
+            if (!socket.isAdmin) {
+                return callback({ success: false, message: 'Unauthorized' });
+            }
+
+            const ordersCollection = getCollection('orders');
+            const order = await ordersCollection.findOne({ orderId: data.orderId });
+
+            if (!order || order.status !== 'pending') {
+                return callback({ success: false, message: 'Cannot reject this order' });
+            }
+
+            await ordersCollection.updateOne(
+                { orderId: data.orderId },
+                {
+                    $set: { status: 'cancelled', updatedAt: new Date() },
+                    $push: {
+                        statusHistory: {
+                            status: 'cancelled',
+                            timestamp: new Date(),
+                            by: socket.id,
+                            note: `Rejected: ${data.reason}`
+                        }
+                    }
+                }
+            );
+
+            io.to(`order_${data.orderId}`).emit('orderRejected', { orderId: data.orderId, reason: data.reason });
+
+            callback({ success: true });
+
+        } catch (error) {
+            console.error('❌ Reject order error:', error);
+            callback({ success: false, message: 'Failed to reject order' });
+        }
+    });
+
 }
