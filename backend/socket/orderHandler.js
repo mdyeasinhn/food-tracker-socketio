@@ -1,6 +1,5 @@
-import { calculateTotals, createOrderDocument, generateOrderId, isValidStatusTransition } from "../utils/helper.js";
+import { calculateTotals, createOrderDocument, generateOrderId, isValidStatusTransition, validateOrderData } from "../utils/helper.js";
 import { getCollection } from "../config/database.js";
-import { isValidElement } from "react";
 
 export const orderHandler = (io, socket) => {
   // Listen for new orders from clients
@@ -11,8 +10,8 @@ export const orderHandler = (io, socket) => {
     try {
       // Your order placement logic here
       console.log(`Place order from ${socket.id}`);
-      const validation = validateOrder(data)
-      if (validation.valid) {
+      const validation = validateOrderData(data);
+      if (!validation.valid) {
         return callback({ success: false, message: validation.message });
       }
       const total = calculateTotals(data.items);
@@ -38,7 +37,8 @@ export const orderHandler = (io, socket) => {
   // track order 
   socket.on("trackOrder", async (data, callback) => {
     try {
-      const order = await ordersCollection.findone({ orderId: data.orderId });
+      const ordersCollection = getCollection('orders');
+      const order = await ordersCollection.findOne({ orderId: data.orderId });
 
       if (!order) {
         return callback({ success: false, message: "Order not found" });
@@ -136,7 +136,7 @@ export const orderHandler = (io, socket) => {
       }
       const orderCollection = getCollection('orders');
       const filter = data.status ? { status: data.status } : {};
-      const orders = await orderCollection.find(filter).sort({ createdAt: -1 }).toArray().limit(20).toArray();
+      const orders = await orderCollection.find(filter).sort({ createdAt: -1 }).limit(20).toArray();
       callback({ success: true, orders });
     } catch (error) {
       callback({ success: false, message: 'Failed to fetch orders' });

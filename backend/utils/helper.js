@@ -2,8 +2,7 @@
  * Validate order data
  */
 export function validateOrderData(data) {
-
- if (!data.customerName?.trim()) {
+    if (!data.customerName?.trim()) {
         return { valid: false, message: 'Customer name is required' };
     }
 
@@ -18,6 +17,8 @@ export function validateOrderData(data) {
     if (!Array.isArray(data.items) || data.items.length === 0) {
         return { valid: false, message: 'Order must have at least one item' };
     }
+
+    return { valid: true };
 }
 
 // Helper functions for order management
