@@ -256,4 +256,12 @@ export const orderHandler = (io, socket) => {
         }
     });
 
+     // Disconnect
+    socket.on('disconnect', () => {
+        console.log(`👋 User disconnected: ${socket.id}`);
+        if (socket.isAdmin) {
+            socket.to('admins').emit('adminDisconnected', { adminId: socket.id });
+        }
+    });
+
 }
